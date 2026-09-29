@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>يوم الثقافات الإسلامية - بازل الأعلام</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap');
+        
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .puzzle-board {
+            display: grid;
+            direction: ltr; /* إجبار البازل على الاتجاه الصحيح لتطابق الصورة */
+            background-color: #333;
+            border: 4px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .puzzle-piece {
+            background-size: var(--board-width) var(--board-height);
+            background-repeat: no-repeat;
+            cursor: grab;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4), inset 0 0 0 2px rgba(0,0,0,0.2); /* تحديد واضح للقطع بدون فراغات */
+            position: relative;
+        }
+
+        .puzzle-piece:active {
+            cursor: grabbing;
+        }
+
+        .puzzle-piece:hover:not(.locked) {
+            transform: scale(0.98);
+            box-shadow: inset 0 0 0 2px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        
+        .puzzle-piece.locked {
+            cursor: default;
+            transform: none;
+            box-shadow: inset 0 0 0 2px #4CAF50; /* إطار أخضر خفيف للقطعة الصحيحة */
+            animation: lockPulse 0.5s ease-out;
+            z-index: 1;
+        }
+        
+        @keyframes lockPulse {
+            0% { box-shadow: inset 0 0 0 4px #4CAF50, 0 0 10px #4CAF50; }
+            100% { box-shadow: inset 0 0 0 2px #4CAF50, 0 0 0px transparent; }
+        }
+
+        .flag-card {
+            transition: all 0.3s ease;
+        }
+        .flag-card:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        }
+
+        .confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            opacity: 0;
+        }
+
+        @keyframes fall {
+            0% { opacity: 1; transform: translateY(-10vh) rotate(0deg); }
+            100% { opacity: 1; transform: translateY(100vh) rotate(360deg); }
+        }
+
+        /* رسالة النجاح */
+        .success-message {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            display: none;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        #game-screen {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 shadow-md text-center">
+        <h1 class="text-3xl font-extrabold mb-2">يوم الثقافات الإسلامية</h1>
+        <p class="text-lg opacity-90">اختر علم دولة، وقم بتجميع قطعه لتتعرف عليه!</p>
+    </header>
+
+    <main class="flex-grow container mx-auto p-4 flex flex-col items-center justify-center relative">
+        
+        <div id="selection-screen" class="w-full max-w-5xl">
+            <h2 class="text-2xl font-bold text-center mb-8 text-indigo-800">اختر علم الدولة لتبدأ اللعب</h2>
+            
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" id="flags-container">
+                <!-- سيتم حقن الأعلام هنا عبر JavaScript -->
+            </div>
+        </div>
+
+        <div id="game-screen" class="w-full max-w-2xl flex flex-col items-center">
+            
+            <div class="flex justify-between items-center w-full mb-6">
+                <button id="back-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-full transition shadow flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                    عودة
+                </button>
+                <h2 id="current-country-name" class="text-3xl font-extrabold text-indigo-800"></h2>
+                <div class="w-24">
+                    <!-- مساحة فارغة لموازنة التصميم -->
+                </div>
+            </div>
+
+            <div class="mb-4 text-center">
+                <p class="text-gray-600 font-bold text-lg bg-yellow-100 p-2 rounded-lg shadow-sm border border-yellow-200 inline-block">اسحب القطعة المبعثرة وضعها في مكانها. القطعة الصحيحة ستثبت!</p>
+                <p class="text-sm text-gray-500 mt-2">المستوى: سهل جداً (4 قطع)</p>
+            </div>
+
+            <!-- حاوية البازل -->
+            <div id="puzzle-container" class="puzzle-board shadow-2xl" dir="ltr">
+                <!-- سيتم حقن قطع البازل هنا -->
+            </div>
+            
+            <div class="mt-8 flex flex-col items-center bg-white p-4 rounded-xl shadow-md border border-gray-200">
+                <p class="text-sm text-gray-500 mb-2 font-bold">شكل العلم الصحيح</p>
+                <img id="reference-image" src="" alt="العلم المرجعي" class="h-24 w-auto border border-gray-300 rounded shadow-sm">
+            </div>
+
+            <!-- رسالة النجاح -->
+            <div id="success-dialog" class="success-message absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-95 z-50 rounded-2xl m-4">
+                <div class="text-6xl mb-4">🏆</div>
+                <h2 class="text-4xl font-extrabold text-green-600 mb-4">عمل رائع!</h2>
+                <p class="text-xl text-gray-700 mb-8 text-center px-4">لقد نجحت في تجميع علم <span id="success-country-name" class="font-bold text-indigo-700"></span>.</p>
+                <button id="play-again-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:scale-105 text-lg">
+                    اختر علماً آخر
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="bg-gray-800 text-gray-300 text-center py-4 mt-8">
+        <p>نشاط يوم الثقافات - تعزيز التعلم التفاعلي</p>
+    </footer>
+
+    <!-- حاوية الاحتفال -->
+    <div id="confetti" class="confetti-container"></div>
+
+    <script>
+        const countries = [
+            { id: 'qatar', name: 'قطر', img: 'https://flagcdn.com/w640/qa.png' },
+            { id: 'egypt', name: 'مصر', img: 'https://flagcdn.com/w640/eg.png' },
+            { id: 'jordan', name: 'الأردن', img: 'https://flagcdn.com/w640/jo.png' },
+            { id: 'saudi', name: 'السعودية', img: 'https://flagcdn.com/w640/sa.png' },
+            { id: 'turkey', name: 'تركيا', img: 'https://flagcdn.com/w640/tr.png' },
+            { id: 'syria', name: 'سوريا', img: 'https://flagcdn.com/w640/sy.png' },
+            { id: 'sudan', name: 'السودان', img: 'https://flagcdn.com/w640/sd.png' },
+            { id: 'palestine', name: 'فلسطين', img: 'https://flagcdn.com/w640/ps.png' },
+            { id: 'morocco', name: 'المغرب', img: 'https://flagcdn.com/w640/ma.png' }
+        ];
+
+        // إعدادات البازل (2x2 للسهولة القصوى = 4 قطع فقط)
+        const GRID_SIZE = 2; 
+        let PUZZLE_WIDTH = 450; 
+        let PUZZLE_HEIGHT = 300; 
+        
+        let currentPuzzle = []; 
+        let currentCountry = null;
+        let isSolved = false;
+
+        let sourceRow = null;
+        let sourceCol = null;
+        let dragEl = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderSelectionScreen();
+            
+            document.getElementById('back-btn').addEventListener('click', showSelectionScreen);
+            document.getElementById('play-again-btn').addEventListener('click', () => {
+                document.getElementById('success-dialog').style.display = 'none';
+                stopConfetti();
+                showSelectionScreen();
+            });
+        });
+
+        function renderSelectionScreen() {
+            const container = document.getElementById('flags-container');
+            container.innerHTML = '';
+
+            countries.forEach(country => {
+                const card = document.createElement('div');
+                card.className = 'flag-card bg-white rounded-xl shadow-md overflow-hidden cursor-pointer border border-gray-100 flex flex-col';
+                card.onclick = () => startGame(country);
+
+                card.innerHTML = `
+                    <div class="h-32 w-full bg-gray-200 flex items-center justify-center p-2">
+                        <img src="${country.img}" onerror="this.src='https://placehold.co/600x400/eee/333?text=العلم+غير+متاح'" alt="علم ${country.name}" class="max-h-full max-w-full object-contain shadow-sm rounded">
+                    </div>
+                    <div class="p-4 text-center bg-gray-50 flex-grow flex items-center justify-center">
+                        <h3 class="text-xl font-bold text-gray-800">${country.name}</h3>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function showSelectionScreen() {
+            document.getElementById('game-screen').style.display = 'none';
+            document.getElementById('selection-screen').style.display = 'block';
+            document.getElementById('success-dialog').style.display = 'none';
+            isSolved = false;
+        }
+
+        function startGame(country) {
+            currentCountry = country;
+            document.getElementById('selection-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
+            
+            document.getElementById('current-country-name').textContent = country.name;
+            document.getElementById('success-country-name').textContent = country.name;
+            document.getElementById('reference-image').src = country.img;
+            document.getElementById('success-dialog').style.display = 'none';
+            isSolved = false;
+            stopConfetti();
+
+            initPuzzle();
+        }
+
+        function initPuzzle() {
+            const container = document.getElementById('puzzle-container');
+            
+            const screenWidth = window.innerWidth;
+            PUZZLE_WIDTH = Math.min(500, screenWidth - 40); 
+            PUZZLE_HEIGHT = (PUZZLE_WIDTH * 2) / 3; 
+
+            container.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
+            container.style.gridTemplateRows = `repeat(${GRID_SIZE}, 1fr)`;
+            container.style.width = `${PUZZLE_WIDTH}px`;
+            container.style.height = `${PUZZLE_HEIGHT}px`;
+
+            container.style.setProperty('--board-width', `${PUZZLE_WIDTH}px`);
+            container.style.setProperty('--board-height', `${PUZZLE_HEIGHT}px`);
+
+            createTiles();
+            shufflePuzzle();
+            renderPuzzle();
+        }
+
+        function createTiles() {
+            currentPuzzle = [];
+            let index = 0;
+            for (let row = 0; row < GRID_SIZE; row++) {
+                let rowArr = [];
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    rowArr.push({
+                        id: index,
+                        correctRow: row,
+                        correctCol: col,
+                        bgPosX: (col / (GRID_SIZE - 1)) * 100,
+                        bgPosY: (row / (GRID_SIZE - 1)) * 100,
+                        isLocked: false // خاصية جديدة لتتبع القطع الصحيحة
+                    });
+                    index++;
+                }
+                currentPuzzle.push(rowArr);
+            }
+        }
+
+        function shufflePuzzle() {
+            let flatArray = [];
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    flatArray.push(currentPuzzle[r][c]);
+                }
+            }
+            
+            // خلط حتى نتأكد أن اللوحة ليست محلولة من البداية
+            do {
+                for (let i = flatArray.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [flatArray[i], flatArray[j]] = [flatArray[j], flatArray[i]];
+                }
+            } while (checkWinCondition(flatArray)); // دالة مؤقتة للتأكد من الخلط
+
+            let i = 0;
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    // تصفير حالة القفل عند الخلط
+                    flatArray[i].isLocked = false;
+                    currentPuzzle[r][c] = flatArray[i++];
+                }
+            }
+            
+            // تحقق مبدئي للقفل (نادرًا ما يحدث من الخلط الأول، لكن كإجراء وقائي)
+            checkLocksInitial();
+        }
+        
+        function checkWinCondition(flatArr) {
+            for(let i=0; i<flatArr.length; i++) {
+                if(flatArr[i].id !== i) return false;
+            }
+            return true;
+        }
+
+        function checkLocksInitial() {
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const tile = currentPuzzle[row][col];
+                    if (tile.correctRow === row && tile.correctCol === col) {
+                        tile.isLocked = true;
+                    }
+                }
+            }
+        }
+
+        function renderPuzzle() {
+            const container = document.getElementById('puzzle-container');
+            container.innerHTML = ''; 
+
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const tileInfo = currentPuzzle[row][col];
+                    const tileEl = document.createElement('div');
+                    tileEl.className = 'puzzle-piece';
+                    
+                    // إذا كانت القطعة في مكانها الصحيح، أضف كلاس locked
+                    if(tileInfo.isLocked) {
+                        tileEl.classList.add('locked');
+                    }
+                    
+                    tileEl.style.backgroundImage = `url('${currentCountry.img}')`;
+                    tileEl.style.backgroundPosition = `${tileInfo.bgPosX}% ${tileInfo.bgPosY}%`;
+
+                    tileEl.dataset.row = row;
+                    tileEl.dataset.col = col;
+
+                    // تفعيل السحب فقط للقطع غير المقفلة
+                    if(!tileInfo.isLocked) {
+                        tileEl.draggable = true;
+                        tileEl.ondragstart = (e) => handleDragStart(e, row, col);
+                        tileEl.ontouchstart = (e) => handleTouchStart(e, row, col);
+                    } else {
+                        tileEl.draggable = false;
+                    }
+                    
+                    // جميع المربعات يمكن الإفلات عليها (لنسمح بتبديل قطعة خاطئة بقطعة خاطئة أخرى)
+                    tileEl.ondragover = handleDragOver;
+                    tileEl.ondragleave = handleDragLeave;
+                    tileEl.ondrop = (e) => handleDrop(e, row, col);
+                    tileEl.ondragend = handleDragEnd;
+
+                    tileEl.ontouchmove = handleTouchMove;
+                    tileEl.ontouchend = handleTouchEnd;
+                    
+                    container.appendChild(tileEl);
+                }
+            }
+        }
+
+        function handleDragStart(e, row, col) {
+            if (isSolved || currentPuzzle[row][col].isLocked) {
+                e.preventDefault();
+                return;
+            }
+            sourceRow = row;
+            sourceCol = col;
+            e.dataTransfer.setData('text/plain', '');
+            setTimeout(() => e.target.style.opacity = '0.5', 0);
+        }
+
+        function handleDragOver(e) {
+            if (isSolved) return;
+            e.preventDefault();
+            // لا تظهر تأثير التحديد إذا كان الهدف مقفلاً
+            const tRow = parseInt(e.target.dataset.row);
+            const tCol = parseInt(e.target.dataset.col);
+            if(tRow !== undefined && !currentPuzzle[tRow][tCol].isLocked) {
+                e.target.style.filter = 'brightness(1.2) sepia(0.5)';
+            }
+        }
+
+        function handleDragLeave(e) {
+            e.target.style.filter = '';
+        }
+
+        function handleDrop(e, targetRow, targetCol) {
+            if (isSolved) return;
+            e.preventDefault();
+            e.target.style.filter = '';
+            
+            // لا تسمح بتبديل قطعة مع قطعة مقفلة
+            if(currentPuzzle[targetRow][targetCol].isLocked) return;
+            
+            swapTiles(sourceRow, sourceCol, targetRow, targetCol);
+        }
+
+        function handleDragEnd(e) {
+            e.target.style.opacity = '1';
+        }
+
+        function handleTouchStart(e, row, col) {
+            if (isSolved || currentPuzzle[row][col].isLocked) return;
+            sourceRow = row;
+            sourceCol = col;
+            dragEl = e.target;
+            dragEl.style.opacity = '0.5';
+        }
+
+        function handleTouchMove(e) {
+            if (isSolved || !dragEl) return;
+            e.preventDefault(); 
+        }
+
+        function handleTouchEnd(e) {
+            if (isSolved || !dragEl) return;
+            dragEl.style.opacity = '1';
+            
+            const touch = e.changedTouches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            if (target && target.classList.contains('puzzle-piece')) {
+                const targetRow = parseInt(target.dataset.row);
+                const targetCol = parseInt(target.dataset.col);
+                
+                if (!isNaN(targetRow) && !isNaN(targetCol)) {
+                    if(!currentPuzzle[targetRow][targetCol].isLocked) {
+                        swapTiles(sourceRow, sourceCol, targetRow, targetCol);
+                    }
+                }
+            }
+            dragEl = null;
+        }
+
+        function swapTiles(r1, c1, r2, c2) {
+            if (r1 === r2 && c1 === c2) return;
+            if (r1 === null || c1 === null) return;
+            
+            const temp = currentPuzzle[r1][c1];
+            currentPuzzle[r1][c1] = currentPuzzle[r2][c2];
+            currentPuzzle[r2][c2] = temp;
+
+            // تحديث حالة القفل (التغذية الراجعة)
+            checkAndUpdateLock(r1, c1);
+            checkAndUpdateLock(r2, c2);
+
+            renderPuzzle();
+            checkWin();
+        }
+        
+        function checkAndUpdateLock(r, c) {
+            const tile = currentPuzzle[r][c];
+            if(tile.correctRow === r && tile.correctCol === c) {
+                tile.isLocked = true;
+            } else {
+                tile.isLocked = false;
+            }
+        }
+
+        function checkWin() {
+            let win = true;
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    if (!currentPuzzle[row][col].isLocked) {
+                        win = false;
+                        break;
+                    }
+                }
+                if (!win) break;
+            }
+
+            if (win) {
+                isSolved = true;
+                const container = document.getElementById('puzzle-container');
+                
+                // إزالة الحدود الخضراء والفراغات عند الفوز
+                Array.from(container.children).forEach(child => {
+                    child.style.boxShadow = 'none';
+                    child.style.border = 'none';
+                });
+                container.style.gap = '0';
+                
+                setTimeout(() => {
+                    document.getElementById('success-dialog').style.display = 'flex';
+                    startConfetti();
+                }, 300);
+            }
+        }
+
+        let confettiInterval;
+        function startConfetti() {
+            const container = document.getElementById('confetti');
+            container.style.display = 'block';
+            container.innerHTML = ''; // مسح القديم
+
+            const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'];
+
+            function createParticle() {
+                const particle = document.createElement('div');
+                particle.className = 'confetti';
+                
+                // خصائص عشوائية
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const left = Math.random() * 100 + 'vw';
+                const animDuration = Math.random() * 3 + 2 + 's'; // بين 2 و 5 ثوان
+                const animDelay = Math.random() * 2 + 's';
+                
+                particle.style.backgroundColor = color;
+                particle.style.left = left;
+                particle.style.animation = `fall ${animDuration} linear ${animDelay} infinite`;
+                
+                container.appendChild(particle);
+
+                // إزالة القطعة بعد انتهاء الحركة لتخفيف العبء على المتصفح
+                setTimeout(() => {
+                    if(particle.parentNode) particle.remove();
+                }, (parseFloat(animDuration) + parseFloat(animDelay)) * 1000);
+            }
+
+            // إنشاء 100 قطعة
+            for (let i = 0; i < 100; i++) {
+                createParticle();
+            }
+            
+            // الاستمرار في توليد القطع
+            confettiInterval = setInterval(() => {
+                for(let i=0; i<10; i++) createParticle();
+            }, 1000);
+        }
+
+        function stopConfetti() {
+            clearInterval(confettiInterval);
+            const container = document.getElementById('confetti');
+            container.style.display = 'none';
+            container.innerHTML = '';
+        }
+
+    </script>
+</body>
+</html>
